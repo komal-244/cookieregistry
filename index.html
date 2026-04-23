@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CookieRegistry — Global Cookie Database</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --cream: #f5f0e8; --warm: #faf8f4; --ink: #1a1612; --ink-l: #3d3530;
+  --muted: #8c7e74; --border: #ddd5c8; --accent: #c4531a;
+  --green: #2d6a4f; --green-l: #e8f5ef; --blue: #1a4480; --blue-l: #e8eefc;
+  --yellow: #b5830a; --yellow-l: #fdf3dc; --red: #9b1c1c; --red-l: #fde8e8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--warm);color:var(--ink);font-family:'DM Mono',monospace;font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Instrument Serif',serif;font-weight:400;line-height:1.2}
+a{color:inherit;text-decoration:none}
+
+/* NAV */
+.nav{position:sticky;top:0;z-index:100;background:var(--ink);color:var(--cream);display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:56px}
+.nav-logo{font-family:'Instrument Serif',serif;font-size:1.3rem}
+.nav-logo span{color:var(--accent)}
+.nav-links{display:flex;gap:2rem;font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase}
+.nav-links a:hover{color:var(--accent)}
+
+/* VIEWS */
+.view{display:none}
+.view.active{display:block}
+
+/* HERO */
+.hero{background:var(--ink);color:var(--cream);padding:5rem 2rem 4rem;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,rgba(196,83,26,.12) 0%,transparent 60%);pointer-events:none}
+.hero-inner{max-width:900px;margin:0 auto;position:relative}
+.hero-eyebrow{font-size:0.7rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem}
+.hero h1{font-size:clamp(2.5rem,5vw,4rem);margin-bottom:1rem;color:var(--cream)}
+.hero h1 em{color:var(--accent);font-style:italic}
+.hero-sub{color:var(--muted);max-width:520px;margin-bottom:2.5rem;font-size:0.85rem;line-height:1.8}
+.search-wrap{display:flex;max-width:580px}
+.search-input{flex:1;padding:.85rem 1.2rem;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-right:none;color:var(--cream);font-family:'DM Mono',monospace;font-size:.85rem;outline:none}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:rgba(255,255,255,.3)}
+.search-btn{padding:.85rem 1.5rem;background:var(--accent);border:1px solid var(--accent);color:#fff;font-family:'DM Mono',monospace;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.search-btn:hover{opacity:.88}
+
+/* STATS */
+.stats-bar{background:var(--cream);border-bottom:1px solid var(--border);padding:.7rem 2rem;display:flex;gap:3rem;font-size:.72rem;flex-wrap:wrap}
+.stat-item strong{color:var(--accent);font-size:1rem;font-family:'Instrument Serif',serif}
+
+/* MAIN */
+.main{max-width:1200px;margin:0 auto;padding:3rem 2rem;display:grid;grid-template-columns:220px 1fr;gap:3rem}
+.sidebar{position:sticky;top:72px;height:fit-content}
+.filter-section{margin-bottom:2rem}
+.filter-title{font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:.75rem;padding-bottom:.5rem;border-bottom:1px solid var(--border)}
+.filter-option{display:flex;align-items:center;justify-content:space-between;padding:.35rem 0;cursor:pointer;font-size:.8rem;color:var(--ink-l)}
+.filter-option:hover,.filter-option.active{color:var(--accent)}
+.filter-count{font-size:.7rem;color:var(--muted);background:var(--cream);padding:.1rem .4rem;border-radius:20px}
+
+/* COOKIES */
+.cookies-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1.5rem}
+.cookies-header h2{font-size:1.5rem}
+.cookie-count{font-size:.75rem;color:var(--muted)}
+.cookies-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:1px;background:var(--border);border:1px solid var(--border)}
+.cookie-card{background:var(--warm);padding:1.5rem;cursor:pointer;transition:background .15s}
+.cookie-card:hover{background:var(--cream)}
+.cookie-name{font-size:.95rem;font-weight:500;word-break:break-all}
+.cookie-provider{font-size:.7rem;color:var(--muted);margin-top:.2rem}
+.cookie-desc{font-size:.78rem;color:var(--ink-l);line-height:1.6;margin:.75rem 0 1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cookie-meta{display:flex;gap:.4rem;flex-wrap:wrap}
+
+/* BADGES */
+.badge{font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;padding:.18rem .5rem;border-radius:2px;font-weight:500}
+.b-ad{background:var(--red-l);color:var(--red)}
+.b-an{background:var(--green-l);color:var(--green)}
+.b-mk{background:var(--red-l);color:var(--red)}
+.b-se{background:var(--blue-l);color:var(--blue)}
+.b-fn{background:var(--blue-l);color:var(--blue)}
+.b-ot{background:var(--cream);color:var(--muted)}
+.b-session{background:var(--green-l);color:var(--green)}
+.b-persist{background:var(--cream);color:var(--ink-l)}
+.r-critical{background:#2d0a0a;color:#ff8080}
+.r-high{background:var(--red-l);color:var(--red)}
+.r-medium{background:var(--yellow-l);color:var(--yellow)}
+.r-low{background:var(--green-l);color:var(--green)}
+
+/* DETAIL VIEW */
+.detail-wrap{max-width:860px;margin:0 auto;padding:3rem 2rem}
+.back-btn{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:inline-flex;align-items:center;gap:.5rem;margin-bottom:2rem;cursor:pointer;background:none;border:none;font-family:'DM Mono',monospace}
+.back-btn:hover{color:var(--accent)}
+.detail-hero{border:1px solid var(--border);background:var(--cream);padding:2.5rem;margin-bottom:2rem}
+.detail-name{font-size:clamp(1.8rem,4vw,2.8rem);word-break:break-all}
+.detail-provider{font-size:.8rem;color:var(--muted);margin-top:.3rem}
+.detail-desc{font-size:.9rem;line-height:1.8;color:var(--ink-l);margin-top:1rem}
+.detail-badges{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
+.prop-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:2rem}
+.prop-cell{background:var(--warm);padding:1.2rem 1.5rem}
+.prop-label{font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem}
+.prop-value{font-size:.88rem}
+.prop-full{grid-column:1/-1}
+.bool-yes{color:var(--green)}
+.bool-no{color:var(--red)}
+.tags-wrap{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:2rem}
+.tag{background:var(--cream);border:1px solid var(--border);padding:.3rem .8rem;font-size:.78rem;color:var(--ink-l)}
+.compliance-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:2rem}
+.comp-card{border:1px solid var(--border);padding:1.2rem 1.5rem;display:flex;align-items:center;gap:1rem}
+.comp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.comp-dot.yes{background:var(--green)}
+.comp-dot.no{background:var(--muted)}
+.comp-label{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.source-box{padding:1.2rem 1.5rem;border:1px solid var(--border);margin-bottom:2rem}
+.source-link{color:var(--accent);font-size:.82rem;word-break:break-all}
+.meta-footer{font-size:.72rem;color:var(--muted);border-top:1px solid var(--border);padding-top:1rem}
+
+/* ADMIN */
+.admin-wrap{max-width:760px;margin:0 auto;padding:3rem 2rem}
+.admin-title{font-size:2rem;margin-bottom:.4rem}
+.admin-sub{color:var(--muted);font-size:.82rem;margin-bottom:2.5rem}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.fg{display:flex;flex-direction:column;gap:.4rem}
+.fg.full{grid-column:1/-1}
+.fl{font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.fi,.fs,.ft{padding:.7rem .9rem;border:1px solid var(--border);background:var(--warm);font-family:'DM Mono',monospace;font-size:.83rem;color:var(--ink);outline:none}
+.fi:focus,.fs:focus,.ft:focus{border-color:var(--accent)}
+.ft{min-height:80px;resize:vertical}
+.cb-row{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;font-size:.8rem}
+.btn-submit{grid-column:1/-1;padding:.9rem;background:var(--ink);color:var(--cream);border:none;font-family:'DM Mono',monospace;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-top:.5rem}
+.btn-submit:hover{background:var(--accent)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed}
+
+/* LOCK */
+.lock{min-height:80vh;display:flex;align-items:center;justify-content:center}
+.lock-box{background:var(--warm);border:1px solid var(--border);padding:3rem;width:360px}
+.lock-box h2{font-size:1.8rem;margin-bottom:.5rem}
+.lock-box p{color:var(--muted);font-size:.8rem;margin-bottom:2rem}
+.lock-err{color:var(--red);font-size:.78rem;margin-bottom:1rem}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--ink);color:var(--cream);padding:1rem 1.5rem;font-size:.8rem;border-left:3px solid var(--accent);z-index:999;animation:slideIn .2s ease}
+.toast.err{border-left-color:var(--red)}
+@keyframes slideIn{from{transform:translateY(1rem);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* LOADING */
+.loading{color:var(--muted);font-size:.85rem;padding:2rem 0}
+.section-title{font-size:1.3rem;margin-bottom:1rem}
+
+@media(max-width:768px){
+  .main{grid-template-columns:1fr}
+  .prop-grid,.compliance-row,.form-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo">🍪 Cookie<span>Registry</span></div>
+  <div class="nav-links">
+    <a href="#" onclick="showView('browse')">Browse</a>
+    <a href="#" onclick="showView('about')">About</a>
+    <a href="#" onclick="showView('admin')">Admin</a>
+  </div>
+</nav>
+
+<!-- BROWSE VIEW -->
+<div id="view-browse" class="view active">
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-eyebrow">Global Cookie Registry</p>
+      <h1>Every cookie,<br><em>documented.</em></h1>
+      <p class="hero-sub">The open reference database for web cookies. Search by name, purpose, or risk level to understand what data is collected, how long it persists, and what regulations apply.</p>
+      <div class="search-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="Search by name, purpose, or description…" onkeydown="if(event.key==='Enter')doSearch()" />
+        <button class="search-btn" onclick="doSearch()">Search</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item"><strong id="statTotal">—</strong> cookies indexed</div>
+    <div class="stat-item"><strong id="statCritical">—</strong> critical risk</div>
+    <div class="stat-item"><strong id="statHigh">—</strong> high risk</div>
+    <div class="stat-item"><strong id="statConsent">—</strong> require consent</div>
+    <div class="stat-item"><strong id="statDepr">—</strong> deprecated</div>
+  </div>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="filter-section">
+        <div class="filter-title">Category</div>
+        <div id="catFilters"></div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-title">Risk Level</div>
+        <div id="riskFilters"></div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-title">Consent</div>
+        <div class="filter-option" id="consentToggle" onclick="toggleConsent()">
+          <span>Requires Consent</span>
+          <span class="filter-count" id="consentCount">—</span>
+        </div>
+      </div>
+    </aside>
+    <main>
+      <div class="cookies-header">
+        <h2>Cookies</h2>
+        <span class="cookie-count" id="resultCount"></span>
+      </div>
+      <div id="cookiesGrid"></div>
+    </main>
+  </div>
+</div>
+
+<!-- DETAIL VIEW -->
+<div id="view-detail" class="view">
+  <div class="detail-wrap" id="detailContent"></div>
+</div>
+
+<!-- ABOUT VIEW -->
+<div id="view-about" class="view">
+  <div style="max-width:720px;margin:0 auto;padding:4rem 2rem">
+    <p style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:1rem">About the project</p>
+    <h1 style="font-size:clamp(2rem,4vw,3rem);margin-bottom:1.5rem">What is CookieRegistry?</h1>
+    <div style="font-size:.88rem;line-height:1.9;color:var(--ink-l)">
+      <p style="margin-bottom:1.2rem">CookieRegistry is an open reference database for web cookies — inspired by Cookiepedia. It documents cookies used across major platforms, covering their purpose, duration, risk level, and regulatory applicability.</p>
+      <p style="margin-bottom:1.2rem">Each cookie entry includes its category (Advertising, Analytics, Marketing, Security, Functionality), plain-language description, expiry details, data collected, and GDPR/CCPA/DPDPA compliance status.</p>
+      <h2 style="font-size:1.4rem;margin:2rem 0 .75rem">Cookie Categories</h2>
+      <p><strong>Advertising</strong> — Ad targeting, impressions, and campaign tracking.</p><br>
+      <p><strong>Analytics</strong> — Usage patterns, performance, and conversion measurement.</p><br>
+      <p><strong>Marketing</strong> — User identification and cross-site conversion tracking.</p><br>
+      <p><strong>Security</strong> — Authentication, session management, and fraud prevention.</p><br>
+      <p><strong>Functionality</strong> — User preferences and browser capability testing.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN VIEW -->
+<div id="view-admin" class="view">
+  <div class="admin-wrap">
+    <div id="adminLock">
+      <div class="lock">
+        <div class="lock-box">
+          <h2>Admin Access</h2>
+          <p>Enter your admin password to manage the registry.</p>
+          <div class="fg" style="margin-bottom:1rem">
+            <label class="fl">Password</label>
+            <input type="password" class="fi" id="adminPw" onkeydown="if(event.key==='Enter')doLogin()" />
+          </div>
+          <div class="lock-err" id="loginErr" style="display:none"></div>
+          <button class="btn-submit" style="display:block;width:100%;margin-top:0" onclick="doLogin()">Unlock</button>
+        </div>
+      </div>
+    </div>
+    <div id="adminForm" style="display:none">
+      <div class="admin-title">Add Cookie</div>
+      <div class="admin-sub">Add a new entry to the global cookie registry.</div>
+      <div class="form-grid">
+        <div class="fg"><label class="fl">Cookie Name *</label><input class="fi" id="f_name" placeholder="e.g. __gpi" /></div>
+        <div class="fg"><label class="fl">Provider *</label><input class="fi" id="f_provider" value="Google" /></div>
+        <div class="fg"><label class="fl">Category *</label>
+          <select class="fs" id="f_category">
+            <option>Advertising</option><option>Analytics</option><option>Marketing</option><option>Security</option><option>Functionality</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">GDPR Category</label><input class="fi" id="f_gdpr_category" placeholder="Defaults to Category" /></div>
+        <div class="fg full"><label class="fl">Purpose</label><input class="fi" id="f_purpose" placeholder="Short one-liner" /></div>
+        <div class="fg full"><label class="fl">Description</label><textarea class="ft" id="f_description" placeholder="Detailed description"></textarea></div>
+        <div class="fg"><label class="fl">Expiry (days)</label><input class="fi" type="number" id="f_expiry_days" placeholder="e.g. 90" /></div>
+        <div class="fg"><label class="fl">Expiry Type</label>
+          <select class="fs" id="f_expiry_type"><option>Fixed</option><option>Session</option></select>
+        </div>
+        <div class="fg"><label class="fl">Risk Level</label>
+          <select class="fs" id="f_risk_level"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select>
+        </div>
+        <div class="fg"><label class="fl">Confidence Level</label>
+          <select class="fs" id="f_confidence_level"><option>Verified</option><option>Deprecated</option><option>Inferred</option></select>
+        </div>
+        <div class="fg full"><label class="fl">Data Collected (comma-separated)</label><input class="fi" id="f_data_collected" placeholder="e.g. Ad ID, targeting data, campaign performance" /></div>
+        <div class="fg full"><label class="fl">Notes</label><input class="fi" id="f_notes" placeholder="Extra context or deprecation notes" /></div>
+        <div class="fg full"><label class="fl">Source URL</label><input class="fi" id="f_source_url" placeholder="https://..." /></div>
+        <div class="fg full" style="display:flex;flex-wrap:wrap;gap:0">
+          <div class="cb-row" style="margin-right:2rem"><input type="checkbox" id="f_first_party"><label for="f_first_party">First Party</label></div>
+          <div class="cb-row" style="margin-right:2rem"><input type="checkbox" id="f_requires_consent" checked><label for="f_requires_consent">Requires Consent</label></div>
+        </div>
+        <button class="btn-submit" id="submitBtn" onclick="submitCookie()">Add to Registry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+
+<script>
+// ── CONFIG ── Replace with your actual Supabase values
+const SUPABASE_URL = 'https://vsshmmrrsnuacrfzgeiu.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_QJ7E20ceXw8gUiMKqQag5g_Asv-neat'
+const ADMIN_PASSWORD = 'Komal@cookiesyumyum'
+
+const { createClient } = supabase
+const db = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// ── STATE ──
+let allCookies = []
+let filtered = []
+let activeCategory = 'All'
+let activeRisk = 'All'
+let consentOnly = false
+let searchQuery = ''
+
+// ── INIT ──
+async function init() {
+  const { data, error } = await db.from('cookies').select('*').order('name')
+  if (!error && data) {
+    allCookies = data
+    buildFilters()
+    updateStats()
+    applyFilters()
+  }
+}
+
+function buildFilters() {
+  const cats = ['All','Advertising','Analytics','Marketing','Security','Functionality']
+  const risks = ['All','critical','high','medium','low']
+  const catCounts = {}
+  const riskCounts = {}
+  allCookies.forEach(c => {
+    catCounts[c.category] = (catCounts[c.category]||0)+1
+    riskCounts[c.risk_level] = (riskCounts[c.risk_level]||0)+1
+  })
+  document.getElementById('catFilters').innerHTML = cats.map(c =>
+    `<div class="filter-option${c===activeCategory?' active':''}" onclick="setCategory('${c}')">
+      <span>${c}</span><span class="filter-count">${c==='All'?allCookies.length:(catCounts[c]||0)}</span>
+    </div>`).join('')
+  document.getElementById('riskFilters').innerHTML = risks.map(r =>
+    `<div class="filter-option${r===activeRisk?' active':''}" onclick="setRisk('${r}')">
+      <span style="text-transform:capitalize">${r}</span><span class="filter-count">${r==='All'?allCookies.length:(riskCounts[r]||0)}</span>
+    </div>`).join('')
+  document.getElementById('consentCount').textContent = allCookies.filter(c=>c.requires_consent).length
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = allCookies.length
+  document.getElementById('statCritical').textContent = allCookies.filter(c=>c.risk_level==='critical').length
+  document.getElementById('statHigh').textContent = allCookies.filter(c=>c.risk_level==='high').length
+  document.getElementById('statConsent').textContent = allCookies.filter(c=>c.requires_consent).length
+  document.getElementById('statDepr').textContent = allCookies.filter(c=>c.confidence_level==='Deprecated').length
+}
+
+function applyFilters() {
+  const q = searchQuery.toLowerCase()
+  filtered = allCookies.filter(c => {
+    const ms = !q || c.name.toLowerCase().includes(q) || (c.purpose||'').toLowerCase().includes(q) || (c.description||'').toLowerCase().includes(q) || (c.provider||'').toLowerCase().includes(q)
+    const mc = activeCategory==='All' || c.category===activeCategory
+    const mr = activeRisk==='All' || c.risk_level===activeRisk
+    const mco = !consentOnly || c.requires_consent
+    return ms && mc && mr && mco
+  })
+  renderGrid()
+}
+
+function renderGrid() {
+  document.getElementById('resultCount').textContent = filtered.length + ' results'
+  if (!filtered.length) {
+    document.getElementById('cookiesGrid').innerHTML = '<p class="loading">No cookies found.</p>'
+    return
+  }
+  document.getElementById('cookiesGrid').innerHTML =
+    '<div class="cookies-grid">' +
+    filtered.map(c => `
+      <div class="cookie-card" onclick="showDetail('${c.id}')">
+        <div class="cookie-name">${c.name}</div>
+        <div class="cookie-provider">${c.provider||''}</div>
+        <p class="cookie-desc">${c.description||c.purpose||'—'}</p>
+        <div class="cookie-meta">
+          ${catBadge(c.category)}
+          ${expiryBadge(c.expiry_days, c.expiry_type)}
+          ${c.risk_level ? `<span class="badge r-${c.risk_level}">${c.risk_level}</span>` : ''}
+          ${c.confidence_level==='Deprecated' ? '<span class="badge b-ot" style="text-decoration:line-through">deprecated</span>' : ''}
+        </div>
+      </div>`).join('') +
+    '</div>'
+}
+
+function catBadge(cat) {
+  const m = {advertising:'b-ad',analytics:'b-an',marketing:'b-mk',security:'b-se',functionality:'b-fn'}
+  return `<span class="badge ${m[(cat||'').toLowerCase()]||'b-ot'}">${cat}</span>`
+}
+
+function expiryBadge(days, type) {
+  if (type==='Session') return '<span class="badge b-session">Session</span>'
+  if (!days) return '<span class="badge b-ot">Unknown</span>'
+  if (days<1) return `<span class="badge b-session">${Math.round(days*24*60)}m</span>`
+  if (days>=365) return `<span class="badge b-persist">${Math.round(days/365)}y</span>`
+  if (days>=30) return `<span class="badge b-persist">${Math.round(days/30)}mo</span>`
+  return `<span class="badge b-persist">${days}d</span>`
+}
+
+function expiryText(days, type) {
+  if (type==='Session') return 'Session'
+  if (!days) return 'Unknown'
+  if (days<1) return Math.round(days*24*60)+' minutes'
+  if (days>=365) return Math.round(days/365)+' year(s) ('+days+' days)'
+  if (days>=30) return Math.round(days/30)+' months ('+days+' days)'
+  return days+' days'
+}
+
+function riskColor(r) {
+  return {critical:'#ff8080',high:'var(--red)',medium:'var(--yellow)',low:'var(--green)'}[r]||'var(--muted)'
+}
+
+function showDetail(id) {
+  const c = allCookies.find(x=>x.id===id)
+  if (!c) return
+  document.getElementById('detailContent').innerHTML = `
+    <button class="back-btn" onclick="showView('browse')">← Back to Registry</button>
+    <div class="detail-hero">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:.5rem">
+        <div>
+          <h1 class="detail-name">${c.name}</h1>
+          <div class="detail-provider">${c.provider||''}</div>
+        </div>
+        <div class="detail-badges">
+          ${catBadge(c.category)}
+          ${c.risk_level?`<span class="badge" style="background:rgba(0,0,0,.06);color:${riskColor(c.risk_level)};text-transform:capitalize">${c.risk_level} risk</span>`:''}
+          ${c.confidence_level==='Deprecated'?'<span class="badge b-ot" style="text-decoration:line-through">Deprecated</span>':''}
+        </div>
+      </div>
+      ${c.description?`<p class="detail-desc">${c.description}</p>`:''}
+    </div>
+
+    <div class="prop-grid">
+      <div class="prop-cell"><div class="prop-label">Cookie Name</div><div class="prop-value" style="font-family:monospace">${c.name}</div></div>
+      <div class="prop-cell"><div class="prop-label">Provider</div><div class="prop-value">${c.provider||'—'}</div></div>
+      <div class="prop-cell"><div class="prop-label">Category</div><div class="prop-value">${c.category||'—'}</div></div>
+      <div class="prop-cell"><div class="prop-label">GDPR Category</div><div class="prop-value">${c.gdpr_category||c.category||'—'}</div></div>
+      <div class="prop-cell"><div class="prop-label">Expiry</div><div class="prop-value">${expiryText(c.expiry_days,c.expiry_type)}</div></div>
+      <div class="prop-cell"><div class="prop-label">Expiry Type</div><div class="prop-value">${c.expiry_type||'—'}</div></div>
+      <div class="prop-cell"><div class="prop-label">First Party</div><div class="prop-value ${c.first_party?'bool-yes':'bool-no'}">${c.first_party?'✓ Yes':'✗ No — Third-party'}</div></div>
+      <div class="prop-cell"><div class="prop-label">Confidence</div><div class="prop-value">${c.confidence_level||'—'}</div></div>
+      <div class="prop-cell prop-full"><div class="prop-label">Purpose</div><div class="prop-value">${c.purpose||'—'}</div></div>
+      ${c.notes?`<div class="prop-cell prop-full"><div class="prop-label">Notes</div><div class="prop-value" style="color:var(--muted)">${c.notes}</div></div>`:''}
+    </div>
+
+    ${c.data_collected&&c.data_collected.length?`
+      <h2 class="section-title">Data Collected</h2>
+      <div class="tags-wrap">${(c.data_collected||[]).map(d=>`<span class="tag">${d}</span>`).join('')}</div>`:''}
+
+    <h2 class="section-title">Regulatory Compliance</h2>
+    <div class="compliance-row">
+      <div class="comp-card">
+        <div class="comp-dot ${c.requires_consent?'yes':'no'}"></div>
+        <div><div class="comp-label">Requires Consent</div>
+        <div style="font-size:.85rem;margin-top:.2rem">${c.requires_consent?'Yes — user consent required':'No — exempt from consent'}</div></div>
+      </div>
+      <div class="comp-card">
+        <div class="comp-dot yes"></div>
+        <div><div class="comp-label">Risk Level</div>
+        <div style="font-size:.85rem;margin-top:.2rem;color:${riskColor(c.risk_level)};font-weight:500;text-transform:capitalize">${c.risk_level||'Unknown'}</div></div>
+      </div>
+    </div>
+
+    ${c.jurisdictions&&c.jurisdictions.length?`
+      <h2 class="section-title">Applicable Jurisdictions</h2>
+      <div class="tags-wrap">${c.jurisdictions.map(j=>`<span class="badge b-se">${j}</span>`).join('')}</div>`:''}
+
+    ${c.source_url?`<div class="source-box"><div class="prop-label" style="margin-bottom:.5rem">Source</div><a class="source-link" href="${c.source_url}" target="_blank">${c.source_url} ↗</a></div>`:''}
+
+    <div class="meta-footer">Added ${new Date(c.created_at).toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'})}</div>
+  `
+  showView('detail')
+}
+
+// ── FILTERS ──
+function setCategory(cat) { activeCategory=cat; buildFilters(); applyFilters() }
+function setRisk(r) { activeRisk=r; buildFilters(); applyFilters() }
+function toggleConsent() {
+  consentOnly = !consentOnly
+  document.getElementById('consentToggle').classList.toggle('active', consentOnly)
+  applyFilters()
+}
+function doSearch() { searchQuery=document.getElementById('searchInput').value; applyFilters() }
+
+// ── VIEWS ──
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'))
+  document.getElementById('view-'+name).classList.add('active')
+  window.scrollTo(0,0)
+}
+
+// ── ADMIN ──
+function doLogin() {
+  const pw = document.getElementById('adminPw').value
+  const err = document.getElementById('loginErr')
+  if (pw === ADMIN_PASSWORD) {
+    document.getElementById('adminLock').style.display='none'
+    document.getElementById('adminForm').style.display='block'
+    err.style.display='none'
+  } else {
+    err.textContent='Incorrect password.'
+    err.style.display='block'
+  }
+}
+
+async function submitCookie() {
+  const name = document.getElementById('f_name').value.trim()
+  const provider = document.getElementById('f_provider').value.trim()
+  const category = document.getElementById('f_category').value
+  if (!name || !provider || !category) { showToast('Name, provider and category are required.','err'); return }
+  const btn = document.getElementById('submitBtn')
+  btn.disabled=true; btn.textContent='Adding…'
+  const row = {
+    name, provider, category,
+    gdpr_category: document.getElementById('f_gdpr_category').value||category,
+    purpose: document.getElementById('f_purpose').value,
+    description: document.getElementById('f_description').value,
+    expiry_days: parseFloat(document.getElementById('f_expiry_days').value)||null,
+    expiry_type: document.getElementById('f_expiry_type').value,
+    risk_level: document.getElementById('f_risk_level').value,
+    confidence_level: document.getElementById('f_confidence_level').value,
+    data_collected: document.getElementById('f_data_collected').value.split(',').map(s=>s.trim()).filter(Boolean),
+    notes: document.getElementById('f_notes').value,
+    source_url: document.getElementById('f_source_url').value,
+    first_party: document.getElementById('f_first_party').checked,
+    requires_consent: document.getElementById('f_requires_consent').checked,
+    jurisdictions: ['GDPR','CCPA','CPRA','DPDPA','ePrivacy Directive']
+  }
+  const { error } = await db.from('cookies').insert([row])
+  btn.disabled=false; btn.textContent='Add to Registry'
+  if (error) { showToast(error.message,'err') }
+  else { showToast('Cookie added to registry ✓'); allCookies=[]; init() }
+}
+
+function showToast(msg, type='') {
+  const t=document.getElementById('toast')
+  t.textContent=msg; t.className='toast'+(type?' '+type:''); t.style.display='block'
+  setTimeout(()=>t.style.display='none',3500)
+}
+
+init()
+</script>
+</body>
+</html>
